@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  # Frontend service - User dashboard
+  frontend:
+    image: node:16-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:4000/api}
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - dolipaas_network
+
+  # Backend service - API and orchestration
+  backend:
+    image: node:16-alpine
+    working_dir: /app
+    volumes:
+      - ./backend:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "${BACKEND_PORT:-4000}:4000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - DB_HOST=${DB_HOST:-db}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-dolipaas}
+      - DB_PASSWORD=${DB_PASSWORD:-dolipaas_password}
+      - DB_NAME=${DB_NAME:-dolipaas}
+      - JWT_SECRET=${JWT_SECRET:-your_jwt_secret_key_change_this_in_production}
+      - DOCKER_SOCKET=/var/run/docker.sock
+      - MONGODB_URI=${MONGODB_URI:-mongodb://dolipaas:dolipaas_password@db:27017/dolipaas}
+    depends_on:
+      - db
+    restart: always
+    networks:
+      - dolipaas_network
+
+  # Database service - Stores user data and deployment configurations
+  db:
+    image: mariadb:10.6
+    volumes:
+      - dolipaas_db_data:/var/lib/mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root_password_change_this}
+      - MYSQL_DATABASE=${DB_NAME:-dolipaas}
+      - MYSQL_USER=${DB_USER:-dolipaas}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-dolipaas_password}
+    ports:
+      - "3306:3306"
+    restart: always
+    networks:
+      - dolipaas_network
+
+  # Dolibarr service - Main application
+  dolibarr:
+    image: tuxgasy/dolibarr:latest
+    restart: always
+    environment:
+      - DOLI_DB_HOST=${DOLI_DB_HOST:-dolibarr_db}
+      - DOLI_DB_USER=${DOLI_DB_USER:-dolibarr}
+      - DOLI_DB_PASSWORD=${DOLI_DB_PASSWORD:-dolibarr_password}
+      - DOLI_DB_NAME=${DOLI_DB_NAME:-dolibarr}
+      - DOLI_URL_ROOT=${DOLI_URL_ROOT:-http://localhost:8080}
+      - DOLI_ADMIN_LOGIN=${DOLI_ADMIN_LOGIN:-admin}
+      - DOLI_ADMIN_PASSWORD=${DOLI_ADMIN_PASSWORD:-admin_password_change_this}
+      - DOLI_MODULES=${DOLI_MODULES:-modSociete,modService,modProduct,modProjet,modPropale,modFacture}
+    ports:
+      - "8080:80"
+    volumes:
+      - dolibarr_documents:/var/www/documents
+    depends_on:
+      - dolibarr_db
+    networks:
+      - dolipaas_network
+
+  # Database for Dolibarr - Each application gets its own database
+  dolibarr_db:
+    image: mariadb:10.6
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASSWORD:-root_password_change_this}
+      - MYSQL_DATABASE=${DOLI_DB_NAME:-dolibarr}
+      - MYSQL_USER=${DOLI_DB_USER:-dolibarr}
+      - MYSQL_PASSWORD=${DOLI_DB_PASSWORD:-dolibarr_password}
+    volumes:
+      - dolibarr_db_data:/var/lib/mysql
+    networks:
+      - dolipaas_network
+      
+  # Nginx reverse proxy for routing traffic
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d
+      - ./infrastructure/nginx/ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+      - dolibarr
+    restart: always
+    networks:
+      - dolipaas_network
+
+  # Monitoring service (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    volumes:
+      - ./infrastructure/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    ports:
+      - "9090:9090"
+
+  # Visualization for monitoring (optional)
+  grafana:
+    image: grafana/grafana:latest
+    volumes:
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin_password_change_this
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  dolipaas_db_data:
+  dolibarr_db_data:
+  dolibarr_documents:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  dolipaas_network:
+    driver: bridge

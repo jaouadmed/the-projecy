@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  wordpress:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - WORDPRESS_DB_HOST=db
+      - WORDPRESS_DB_USER=${DB_USER:-wordpress}
+      - WORDPRESS_DB_PASSWORD=${DB_PASSWORD:-wordpress_password}
+      - WORDPRESS_DB_NAME=${DB_NAME:-wordpress}
+      - WORDPRESS_TABLE_PREFIX=${TABLE_PREFIX:-wp_}
+      - WORDPRESS_DEBUG=${WP_DEBUG:-false}
+    ports:
+      - "${HOST_PORT:-8080}:80"
+    volumes:
+      - wordpress_data:/var/www/html
+    depends_on:
+      - db
+    networks:
+      - wordpress_network
+
+  db:
+    image: mariadb:10.6
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+      - MYSQL_DATABASE=${DB_NAME:-wordpress}
+      - MYSQL_USER=${DB_USER:-wordpress}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-wordpress_password}
+    volumes:
+      - wordpress_db:/var/lib/mysql
+    networks:
+      - wordpress_network
+
+volumes:
+  wordpress_data:
+    name: ${INSTANCE_NAME:-wordpress}_data
+  wordpress_db:
+    name: ${INSTANCE_NAME:-wordpress}_db
+
+networks:
+  wordpress_network:
+    name: ${INSTANCE_NAME:-wordpress}_network

@@ -1,0 +1,16 @@
+# Odoo cron jobs configuration
+# m h dom mon dow user command
+
+# Backup database daily at 2:00 AM
+0 2 * * * odoo /usr/local/bin/odoo --config=/etc/odoo/odoo.conf --backup --backup-dir=/var/lib/odoo/backups
+
+# Run Odoo scheduler every 30 minutes
+*/30 * * * * odoo /usr/local/bin/odoo --config=/etc/odoo/odoo.conf --no-http --stop-after-init
+
+# Clean old backups weekly (keep last 14 days)
+0 3 * * 0 root find /var/lib/odoo/backups -type f -name "*.zip" -mtime +14 -delete
+
+# Restart Odoo weekly for memory management
+0 4 * * 0 root supervisorctl restart odoo
+
+# Add empty line at the end

@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  dolibarr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - DOLI_DB_HOST=db
+      - DOLI_DB_USER=${DB_USER:-dolibarr}
+      - DOLI_DB_PASSWORD=${DB_PASSWORD:-dolibarr_password}
+      - DOLI_DB_NAME=${DB_NAME:-dolibarr}
+      - DOLI_URL_ROOT=${DOLI_URL_ROOT:-http://localhost:8080}
+      - DOLI_ADMIN_LOGIN=${ADMIN_LOGIN:-admin}
+      - DOLI_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin_password}
+      - DOLI_MODULES=${MODULES:-modSociete,modService,modProduct,modProjet,modPropale,modFacture}
+      - PHP_INI_DATE_TIMEZONE=${TIMEZONE:-UTC}
+    ports:
+      - "${HOST_PORT:-8080}:80"
+    volumes:
+      - dolibarr_data:/var/www/documents
+    depends_on:
+      - db
+    networks:
+      - dolibarr_network
+
+  db:
+    image: mariadb:10.6
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+      - MYSQL_DATABASE=${DB_NAME:-dolibarr}
+      - MYSQL_USER=${DB_USER:-dolibarr}
+      - MYSQL_PASSWORD=${DB_PASSWORD:-dolibarr_password}
+    volumes:
+      - dolibarr_db:/var/lib/mysql
+    networks:
+      - dolibarr_network
+
+volumes:
+  dolibarr_data:
+    name: ${INSTANCE_NAME:-dolibarr}_data
+  dolibarr_db:
+    name: ${INSTANCE_NAME:-dolibarr}_db
+
+networks:
+  dolibarr_network:
+    name: ${INSTANCE_NAME:-dolibarr}_network

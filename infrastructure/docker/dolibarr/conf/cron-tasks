@@ -1,0 +1,13 @@
+# Dolibarr cron jobs
+# m h dom mon dow user command
+
+# Run automatic backup daily at 2:00 AM
+0 2 * * * www-data php /var/www/html/scripts/cron/cron_run_jobs.php backup > /var/log/dolibarr_cron.log 2>&1
+
+# Run agenda reminders every 5 minutes
+*/5 * * * * www-data php /var/www/html/scripts/cron/cron_run_jobs.php agenda > /var/log/dolibarr_cron.log 2>&1
+
+# Run email sending every 15 minutes
+*/15 * * * * www-data php /var/www/html/scripts/cron/cron_run_jobs.php mailing > /var/log/dolibarr_cron.log 2>&1
+
+# Empty line at the end is required for cron to work properly

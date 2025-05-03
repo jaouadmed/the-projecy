@@ -1,0 +1,255 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dolipaas-odoo
+  namespace: dolipaas
+  labels:
+    app: dolipaas-odoo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dolipaas-odoo
+  template:
+    metadata:
+      labels:
+        app: dolipaas-odoo
+    spec:
+      containers:
+      - name: odoo
+        image: odoo:16.0
+        ports:
+        - containerPort: 8069
+        env:
+        - name: DB_HOST
+          value: dolipaas-db
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: dolipaas-secrets
+              key: db-user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dolipaas-secrets
+              key: db-password
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: dolipaas-secrets
+              key: db-name
+        - name: ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dolipaas-secrets
+              key: admin-password
+        - name: PROXY_MODE
+          value: "False"
+        - name: WORKERS
+          value: "2"
+        volumeMounts:
+        - name: odoo-data
+          mountPath: /var/lib/odoo
+        - name: odoo-addons
+          mountPath: /mnt/extra-addons
+        - name: odoo-config
+          mountPath: /etc/odoo
+      volumes:
+      - name: odoo-data
+        persistentVolumeClaim:
+          claimName: odoo-data-pvc
+      - name: odoo-addons
+        persistentVolumeClaim:
+          claimName: odoo-addons-pvc
+      - name: odoo-config
+        configMap:
+          name: odoo-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dolipaas-odoo
+  namespace: dolipaas
+spec:
+  selector:
+    app: dolipaas-odoo
+  ports:
+  - port: 8069
+    targetPort: 8069
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dolipaas-db
+  namespace: dolipaas
+  labels:
+    app: dolipaas-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dolipaas-db
+  template:
+    metadata:
+      labels:
+        app: dolipaas-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: dolipaas-secrets
+              key: db-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: dolipaas-secrets
+              key: db-password
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: dolipaas-secrets
+              key: db-name
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-data-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dolipaas-db
+  namespace: dolipaas
+spec:
+  selector:
+    app: dolipaas-db
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: odoo-data-pvc
+  namespace: dolipaas
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: odoo-addons-pvc
+  namespace: dolipaas
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data-pvc
+  namespace: dolipaas
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: odoo-config
+  namespace: dolipaas
+data:
+  odoo.conf: |
+    [options]
+    # General Settings
+    admin_passwd = ${ADMIN_PASSWORD}
+    db_host = ${DB_HOST}
+    db_port = ${DB_PORT}
+    db_user = ${DB_USER}
+    db_password = ${DB_PASSWORD}
+    db_name = ${DB_NAME}
+    db_maxconn = 64
+    db_template = template0
+
+    # HTTP Service Configuration
+    http_interface = 0.0.0.0
+    http_port = 8069
+    proxy_mode = ${PROXY_MODE}
+    gevent_port = 8072
+    longpolling_port = 8072
+    workers = ${WORKERS}
+    limit_time_cpu = 600
+    limit_time_real = 1200
+    max_cron_threads = 2
+
+    # Logging Configuration
+    logfile = /var/log/odoo/odoo.log
+    log_level = info
+    log_handler = :INFO
+
+    # Addons Path
+    addons_path = /mnt/extra-addons,/usr/lib/python3/dist-packages/odoo/addons
+
+    # Data Directories
+    data_dir = /var/lib/odoo
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dolipaas-secrets
+  namespace: dolipaas
+type: Opaque
+data:
+  db-user: b2Rvbw==  # odoo (base64 encoded)
+  db-password: c2VjdXJlX3Bhc3N3b3JkX2hlcmU=  # secure_password_here (base64 encoded)
+  db-name: ZG9saXBhYXM=  # dolipaas (base64 encoded)
+  admin-password: c2VjdXJlX2FkbWluX3Bhc3N3b3JkX2hlcmU=  # secure_admin_password_here (base64 encoded)
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dolipaas-ingress
+  namespace: dolipaas
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # Uncomment for HTTPS
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  # Uncomment for HTTPS
+  # tls:
+  # - hosts:
+  #   - dolipaas.example.com
+  #   secretName: dolipaas-tls
+  rules:
+  - host: dolipaas.example.com  # Replace with your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dolipaas-odoo
+            port:
+              number: 8069

@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  odoo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-odoo}
+      - DB_PASSWORD=${DB_PASSWORD:-odoo_password}
+      - DB_NAME=${DB_NAME:-odoo}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - PROXY_MODE=${PROXY_MODE:-False}
+      - WORKERS=${WORKERS:-2}
+      - LIST_DB=${LIST_DB:-True}
+      - WITHOUT_DEMO=${WITHOUT_DEMO:-True}
+      - OSV_MEMORY_COUNT_LIMIT=${OSV_MEMORY_COUNT_LIMIT:-False}
+      - OSV_MEMORY_AGE_LIMIT=${OSV_MEMORY_AGE_LIMIT:-1.0}
+      - SMTP_SERVER=${SMTP_SERVER:-}
+      - SMTP_PORT=${SMTP_PORT:-25}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_SSL=${SMTP_SSL:-False}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+    ports:
+      - "${HOST_PORT:-8069}:8069"
+    volumes:
+      - odoo_data:/var/lib/odoo
+      - odoo_addons:/mnt/extra-addons
+    depends_on:
+      - db
+    networks:
+      - odoo_network
+
+  db:
+    image: postgres:13
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB_USER:-odoo}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-odoo_password}
+      - POSTGRES_DB=${DB_NAME:-odoo}
+    volumes:
+      - odoo_db:/var/lib/postgresql/data
+    networks:
+      - odoo_network
+
+volumes:
+  odoo_data:
+    name: ${INSTANCE_NAME:-odoo}_data
+  odoo_addons:
+    name: ${INSTANCE_NAME:-odoo}_addons
+  odoo_db:
+    name: ${INSTANCE_NAME:-odoo}_db
+
+networks:
+  odoo_network:
+    name: ${INSTANCE_NAME:-odoo}_network

@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # Dolibarr application
+  dolibarr:
+    image: tuxgasy/dolibarr:latest
+    restart: always
+    environment:
+      - DOLI_DB_HOST=db
+      - DOLI_DB_USER=${DOLIBARR_DB_USER:-dolibarr}
+      - DOLI_DB_PASSWORD=${DOLIBARR_DB_PASSWORD:-dolibarr_password}
+      - DOLI_DB_NAME=${DOLIBARR_DB_NAME:-dolibarr}
+      - DOLI_URL_ROOT=${DOLIBARR_URL:-http://localhost:8080}
+      - DOLI_ADMIN_LOGIN=${DOLIBARR_ADMIN_USER:-admin}
+      - DOLI_ADMIN_PASSWORD=${DOLIBARR_ADMIN_PASSWORD:-admin_password}
+      - DOLI_MODULES=${DOLIBARR_MODULES:-modSociete,modService,modProduct,modProjet,modPropale,modFacture,modContrat,modFournisseur,modStock}
+      - PHP_INI_DATE_TIMEZONE=${TIMEZONE:-UTC}
+      - PHP_INI_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-256M}
+    ports:
+      - "${DOLIBARR_PORT:-8080}:80"
+    volumes:
+      - dolibarr_data:/var/www/documents
+      - dolibarr_custom:/var/www/html/custom
+    depends_on:
+      - db
+    networks:
+      - dolibarr_network
+
+  # MariaDB database
+  db:
+    image: mariadb:10.6
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+      - MYSQL_DATABASE=${DOLIBARR_DB_NAME:-dolibarr}
+      - MYSQL_USER=${DOLIBARR_DB_USER:-dolibarr}
+      - MYSQL_PASSWORD=${DOLIBARR_DB_PASSWORD:-dolibarr_password}
+    volumes:
+      - dolibarr_db:/var/lib/mysql
+    networks:
+      - dolibarr_network
+
+  # Optional: phpMyAdmin for database management
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    environment:
+      - PMA_HOST=db
+      - PMA_PORT=3306
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root_password}
+    ports:
+      - "${PHPMYADMIN_PORT:-8081}:80"
+    depends_on:
+      - db
+    networks:
+      - dolibarr_network
+
+volumes:
+  dolibarr_data:
+    driver: local
+  dolibarr_custom:
+    driver: local
+  dolibarr_db:
+    driver: local
+
+networks:
+  dolibarr_network:
+    driver: bridge

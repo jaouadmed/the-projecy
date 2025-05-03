@@ -1,0 +1,16 @@
+# WordPress cron jobs
+# m h dom mon dow user command
+
+# Run WordPress cron every 15 minutes
+*/15 * * * * www-data curl -s http://localhost/wp-cron.php > /dev/null 2>&1
+
+# Run automatic backup daily at 3:00 AM
+0 3 * * * www-data wp-cli.phar backup create --path=/var/www/html --allow-root > /var/log/wordpress_backup.log 2>&1
+
+# Check for WordPress updates daily at 4:00 AM
+0 4 * * * www-data wp-cli.phar core update --path=/var/www/html --allow-root > /var/log/wordpress_update.log 2>&1
+
+# Check for plugin updates daily at 4:30 AM
+30 4 * * * www-data wp-cli.phar plugin update --all --path=/var/www/html --allow-root > /var/log/wordpress_plugin_update.log 2>&1
+
+# Empty line at the end is required for cron to work properly
