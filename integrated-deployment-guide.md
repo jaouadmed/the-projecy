@@ -17,7 +17,7 @@ sudo chown $USER:$USER /opt/dolipaas
 cd /opt/dolipaas
 
 # Clone the repository (if using Git) or create the structure manually
-git clone https://your-repository-url.git .
+git clone https://github.com/jaouadmed/the-projecy.git .
 # OR
 mkdir -p backend frontend database infrastructure/docker/dolibarr
 ```
@@ -49,14 +49,14 @@ DOLI_DB_HOST=dolibarr_db
 DOLI_DB_USER=dolibarr
 DOLI_DB_PASSWORD=dolibarr_password
 DOLI_DB_NAME=dolibarr
-DOLI_URL_ROOT=http://your-domain.com:8080
+DOLI_URL_ROOT=185.208.207.231:8080
 DOLI_ADMIN_LOGIN=admin
 DOLI_ADMIN_PASSWORD=admin_password_change_this
 DOLI_MODULES=modSociete,modService,modProduct,modProjet,modPropale,modFacture
 
 # Frontend settings
 FRONTEND_PORT=3000
-VITE_API_URL=http://your-domain.com:4000/api
+VITE_API_URL=185.208.207.231:4000/api
 EOF
 ```
 
@@ -95,7 +95,7 @@ cd /opt/dolipaas/frontend
 
 # Create .env file for frontend
 cat > .env << 'EOF'
-VITE_API_URL=http://your-domain.com:4000/api
+VITE_API_URL=185.208.207.231:4000/api
 EOF
 
 # Install dependencies (if not using Docker)
@@ -105,9 +105,43 @@ npm install
 ### 4.2 Build the Frontend for Production
 
 ```bash
-# Build the frontend
-npm run build
+# Ensure compatible Node.js version (use Node.js 16 which is more compatible with older packages)
+docker run --rm -v $(pwd):/app -w /app node:16 npm run build
+
+# Alternatively, if running directly on the host:
+# nvm install 16 && nvm use 16  # If using nvm
+# npm run build
 ```
+
+#### Troubleshooting Frontend Build Issues
+
+If you encounter a syntax error like this when building the frontend:
+
+```
+SyntaxError: Unexpected token ;
+    at Module._compile (internal/modules/cjs/loader.js:723:23)
+```
+
+This is typically caused by Node.js version incompatibility with some dependencies. Try these solutions:
+
+1. **Use Node.js 16 for building:**
+   ```bash
+   # Using Docker to build with Node.js 16
+   docker run --rm -v $(pwd):/app -w /app node:16 npm run build
+   ```
+
+2. **Install peer dependencies:**
+   ```bash
+   npm install --save-dev postcss-selector-parser@^6.0.10 @types/react@^18.0.0 typescript@^4.0.0
+   npm run build
+   ```
+
+3. **Clean and reinstall node_modules:**
+   ```bash
+   rm -rf node_modules package-lock.json
+   npm install
+   npm run build
+   ```
 
 ## 5. Create an Integrated Docker Compose File
 
@@ -126,7 +160,7 @@ services:
     working_dir: /app
     volumes:
       - ./frontend:/app
-    command: sh -c "npm install && npm run start"
+    command: sh -c "npm install --save-dev postcss-selector-parser@^6.0.10 @types/react@^18.0.0 typescript@^4.0.0 && npm run start"
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     environment:
@@ -346,6 +380,25 @@ docker-compose logs -f
 - Check that the `VITE_API_URL` environment variable is set correctly
 - Verify that the backend container is running
 - Check Nginx configuration for proper routing
+
+#### Frontend Build Errors
+
+- **SyntaxError with eslint-webpack-plugin**: If you see `SyntaxError: Unexpected token ;` related to eslint-webpack-plugin, this is typically caused by Node.js version incompatibility:
+  ```
+  /opt/dolipaas/frontend/node_modules/eslint-webpack-plugin/node_modules/jest-worker/build/index.js:110
+    _ending;
+           ^
+  SyntaxError: Unexpected token ;
+  ```
+  - Solution: Use Node.js 16 as specified in the Docker Compose file and build instructions
+  - If building outside Docker, install Node.js 16 using nvm: `nvm install 16 && nvm use 16`
+
+- **Peer dependency warnings**: Install missing peer dependencies as specified in section 4.2
+
+- **For persistent build issues**: Try building in a clean environment using Docker:
+  ```bash
+  docker run --rm -v $(pwd):/app -w /app node:16 sh -c "npm ci && npm run build"
+  ```
 
 #### Backend Cannot Connect to Database
 
